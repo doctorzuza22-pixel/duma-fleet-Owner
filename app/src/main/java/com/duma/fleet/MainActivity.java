@@ -10,9 +10,9 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -45,14 +45,33 @@ public class MainActivity extends Activity {
     private void render() {
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xFFF4F5F7);
-        TextView header = text("DUMA FLEET", 23, 0xFFFFFFFF); header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(0xFF111827); header.setPadding(dp(18), dp(18), dp(18), dp(18));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setBackgroundColor(0xFF111827);
+        header.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.duma_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        header.addView(logo, new LinearLayout.LayoutParams(dp(56), dp(56)));
+
+        LinearLayout brand = new LinearLayout(this);
+        brand.setOrientation(LinearLayout.VERTICAL);
+        brand.setPadding(dp(12), 0, 0, 0);
+        TextView name = text("DUMA FLEET", 21, 0xFFFFFFFF);
+        name.setPadding(0, 0, 0, dp(2));
+        TextView tagline = text("Smart Fleet Management. Built for Africa. Ready for the World.", 11, 0xFFE5E7EB);
+        tagline.setPadding(0, 0, 0, 0);
+        brand.addView(name);
+        brand.addView(tagline);
+        header.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(header);
-        TextView sub = text("Fleet management • Africa to the world", 12, 0xFF64748B);
-        root.addView(sub);
+
         ScrollView scroll = new ScrollView(this);
         content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(12), dp(4), dp(12), dp(18)); scroll.addView(content);
+        content.setPadding(dp(12), dp(12), dp(12), dp(18)); scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout nav = new LinearLayout(this); nav.setBackgroundColor(0xFFFFFFFF);
         String[] tabs = {"Dashboard","Vehicles","Drivers","Trips","Fuel","Maintenance"};
@@ -118,7 +137,7 @@ public class MainActivity extends Activity {
                 for(int i=0;i<fields.length;i++){ if(i>0)row.append(" • "); row.append(labels[i]).append(": ").append(fields[i].getText().toString().trim()); }
                 if(row.toString().replaceAll("[^:]*: ?","").trim().isEmpty()) { Toast.makeText(this,"Enter details first",Toast.LENGTH_SHORT).show(); return; }
                 String stamp=new SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(new Date());
-                String old=records(key); prefs.edit().putString(key,(old.isEmpty()?"":old+"\n")+stamp+" • "+row).apply();
+                String old=records(key); prefs.edit().putString(key,(old.isEmpty()?"":old+"\\n")+stamp+" • "+row).apply();
                 Toast.makeText(this,"Saved on this device",Toast.LENGTH_SHORT).show(); render();
             }).show();
     }
@@ -133,7 +152,7 @@ public class MainActivity extends Activity {
             if(loc==null) loc=lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
             if(loc==null) { Toast.makeText(this,"No recent location yet. Turn on location and try again.",Toast.LENGTH_LONG).show(); return; }
             String value=String.format(Locale.US,"GPS: %.6f, %.6f (accuracy %.0f m)",loc.getLatitude(),loc.getLongitude(),loc.getAccuracy());
-            String old=records("Trips"); prefs.edit().putString("Trips",(old.isEmpty()?"":old+"\n")+new SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(new Date())+" • "+value).apply();
+            String old=records("Trips"); prefs.edit().putString("Trips",(old.isEmpty()?"":old+"\\n")+new SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(new Date())+" • "+value).apply();
             Toast.makeText(this,"Location saved to trip log",Toast.LENGTH_LONG).show(); render();
         } catch(SecurityException e) { Toast.makeText(this,"Location permission is required",Toast.LENGTH_SHORT).show(); }
     }
