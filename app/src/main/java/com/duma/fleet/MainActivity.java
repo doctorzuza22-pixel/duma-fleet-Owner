@@ -207,7 +207,7 @@ public class MainActivity extends Activity {
         }));
         card("Keep exported files somewhere safe. These exports are not cloud backups.");
     }
-    private String csvEscape(String s){return "\""+s.replace("\"","\\"")+"\"";}
+    private String csvEscape(String s){return "\""+s.replace("\"","\"\"")+"\"";}
     private void exportCsv() {
         StringBuilder csv=new StringBuilder("Module,Record\n");
         for(String key:modules) if(!key.equals("Dashboard")&&!key.equals("Reports"))
