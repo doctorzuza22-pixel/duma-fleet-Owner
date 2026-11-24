@@ -1,255 +1,123 @@
 package com.duma.fleet;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ContentValues;
-import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.pdf.PdfDocument;
-import android.location.Location;
-import android.location.LocationManager;
-import android.net.Uri;
+import android.graphics.Color;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.view.Gravity;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.HorizontalScrollView;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
-import android.widget.Toast;
-import java.io.OutputStream;
+import android.view.View;
+import android.widget.*;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-import java.util.Calendar;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 
 public class MainActivity extends Activity {
-    private LinearLayout content;
-    private SharedPreferences prefs;
-    private String section = "Dashboard";
-    private static final int GPS_PERMISSION = 41;
-    private final String[] modules = {"Dashboard","Vehicles","Drivers","Trips","Fuel","Maintenance","Inspections","Documents","Reports"};
-
-    @Override public void onCreate(Bundle state) {
-        super.onCreate(state);
-        prefs = getSharedPreferences("duma_fleet_data", MODE_PRIVATE);
-        render();
+    private SharedPreferences db;
+    private LinearLayout body, root;
+    private String tab="Dashboard", selectedPlate="";
+    private final String[] nav={"Dashboard","Vehicles","Drivers","Trips","Money"};
+    private final String[] vehicleTabs={"Documents","Maintenance","Fuel","Inspections","Trips","Duma Freight"};
+    private int ink=Color.rgb(25,35,48), muted=Color.rgb(95,106,119), blue=Color.rgb(27,73,112);
+    private int red=Color.rgb(177,39,39), green=Color.rgb(31,119,75);
+    @Override public void onCreate(Bundle b){super.onCreate(b);db=getSharedPreferences("duma_fleet_data",MODE_PRIVATE);render();}
+    private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density);}
+    private String stamp(){return new SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.US).format(new Date());}
+    private String get(String k){return db.getString(k,"");}
+    private int count(String k){String s=get(k);if(s.trim().isEmpty())return 0;return s.split("\\n").length;}
+    private void save(String k,String value){String old=get(k);db.edit().putString(k,(old.isEmpty()?"":old+"\n")+stamp()+" • "+value).apply();Toast.makeText(this,"Saved on this device",Toast.LENGTH_SHORT).show();render();}
+    private TextView label(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setPadding(dp(12),dp(8),dp(12),dp(8));return t;}
+    private Button btn(String s,int color,Runnable run){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(Color.WHITE);b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(color));b.setOnClickListener(v->run.run());return b;}
+    private void addCard(String s){TextView t=label(s,14,ink);t.setBackgroundColor(Color.WHITE);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(4),0,dp(4));body.addView(t,p);}
+    private void heading(String s){TextView t=label(s,20,ink);t.setTypeface(null,1);body.addView(t);}
+    private void action(String s,int color,Runnable r){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(5),0,dp(5));body.addView(btn(s,color,r),p);}
+    private void render(){
+        root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(Color.rgb(244,246,248));
+        LinearLayout header=new LinearLayout(this);header.setOrientation(1);header.setPadding(dp(16),dp(13),dp(16),dp(13));header.setBackgroundColor(0xFF142536);
+        TextView title=label("DUMA FLEET MANAGEMENT",19,Color.WHITE);title.setTypeface(null,1);title.setPadding(0,0,0,dp(2));header.addView(title);
+        TextView sub=label("by Duma Holdings",12,0xFFE0E7EF);sub.setPadding(0,0,0,dp(2));header.addView(sub);
+        TextView tag=label("Smart Fleet Management. Built for Africa. Ready for the World.",10,0xFFCFD8E3);tag.setPadding(0,0,0,0);header.addView(tag);root.addView(header);
+        ScrollView sc=new ScrollView(this);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(12),dp(10),dp(12),dp(18));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout bar=new LinearLayout(this);bar.setBackgroundColor(Color.WHITE);bar.setGravity(Gravity.CENTER);for(String n:nav){TextView t=label(n,11,tab.equals(n)?blue:muted);t.setGravity(Gravity.CENTER);t.setTypeface(null,tab.equals(n)?1:0);bar.addView(t,new LinearLayout.LayoutParams(0,dp(54),1));t.setOnClickListener(v->{tab=n;render();});}root.addView(bar);setContentView(root);
+        switch(tab){case "Dashboard":dashboard();break;case "Vehicles":vehicles();break;case "Drivers":drivers();break;case "Trips":trips();break;case "Money":money();break;}
     }
-    private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density); }
-    private TextView text(String value, int size, int color) {
-        TextView t = new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color);
-        t.setPadding(dp(12), dp(9), dp(12), dp(9)); return t;
-    }
-    private Button button(String value, Runnable action) {
-        Button b = new Button(this); b.setText(value); b.setAllCaps(false);
-        b.setOnClickListener(v -> action.run()); return b;
-    }
-    private void render() {
-        LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFFF4F5F7);
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(0xFF111827); header.setPadding(dp(14), dp(10), dp(14), dp(10));
-        ImageView logo = new ImageView(this); logo.setImageResource(R.drawable.duma_logo);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        header.addView(logo, new LinearLayout.LayoutParams(dp(54), dp(54)));
-        LinearLayout brand = new LinearLayout(this); brand.setOrientation(LinearLayout.VERTICAL);
-        brand.setPadding(dp(10),0,0,0);
-        TextView name=text("DUMA FLEET",20,0xFFFFFFFF); name.setPadding(0,0,0,dp(2));
-        TextView tagline=text("Smart Fleet Management. Built for Africa. Ready for the World.",10,0xFFE5E7EB); tagline.setPadding(0,0,0,0);
-        brand.addView(name); brand.addView(tagline); header.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-        root.addView(header);
-        ScrollView scroll=new ScrollView(this); content=new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(12),dp(12),dp(12),dp(18));
-        scroll.addView(content); root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        HorizontalScrollView navScroll=new HorizontalScrollView(this); navScroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout nav=new LinearLayout(this); nav.setBackgroundColor(0xFFFFFFFF);
-        for(String tab:modules) {
-            Button b=new Button(this); b.setText(tab); b.setTextSize(10); b.setAllCaps(false);
-            b.setPadding(dp(5),dp(7),dp(5),dp(7));
-            b.setOnClickListener(v->{section=tab;render();});
-            nav.addView(b,new LinearLayout.LayoutParams(-2,dp(52)));
-        }
-        navScroll.addView(nav); root.addView(navScroll); setContentView(root);
-        if(section.equals("Dashboard")) dashboard(); else if(section.equals("Reports")) reports(); else listSection(section);
-    }
-    private void heading(String s) { content.addView(text(s,20,0xFF111827)); }
-    private void card(String s) {
-        TextView t=text(s,14,0xFF1F2937); t.setBackgroundColor(0xFFFFFFFF);
-        t.setPadding(dp(14),dp(13),dp(14),dp(13));
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2); p.setMargins(0,dp(5),0,dp(5)); content.addView(t,p);
-    }
-    private String records(String key) { return prefs.getString(key, ""); }
-    private int count(String key) { String s=records(key); return s.isEmpty()?0:s.split("\\n").length; }
-    private String stamp() { return new SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(new Date()); }
-    private void save(String key,String row) {
-        String old=records(key); prefs.edit().putString(key,(old.isEmpty()?"":old+"\n")+stamp()+" • "+row).apply();
-        Toast.makeText(this,"Saved on this device",Toast.LENGTH_SHORT).show(); render();
-    }
-    private void dashboard() {
+    private void dashboard(){
+        heading("Dashboard");
+        addCard("MONEY THIS MONTH\nTotal earned: R"+moneyTotal("Earned")+"\nDiesel cost: R"+moneyTotal("Diesel")+"\nMaintenance cost: R"+moneyTotal("Maintenance")+"\nProfit: R"+profit());
+        TextView rescue=label("🚨 I AM BROKEN DOWN - TAP FOR DUMA RESCUE\nTyre, Battery, Engine, Fuel, Towing. We come to you.",15,Color.WHITE);rescue.setTypeface(null,1);rescue.setBackgroundColor(red);body.addView(rescue);rescue.setOnClickListener(v->rescueForm());
+        TextView freight=label("2 Trucks Idle - Put Them On Duma Freight To Earn\n\nPUT TRUCKS ON DUMA FREIGHT",14,Color.WHITE);freight.setTypeface(null,1);freight.setBackgroundColor(green);body.addView(freight);freight.setOnClickListener(v->{tab="Vehicles";render();});
         heading("Fleet overview");
-        card("Vehicles registered     "+count("Vehicles"));
-        card("Drivers registered       "+count("Drivers"));
-        card("Trips recorded           "+count("Trips"));
-        card("Fuel entries             "+count("Fuel"));
-        card("Maintenance records      "+count("Maintenance"));
-        card("Inspections completed    "+count("Inspections"));
-        card("Documents registered    "+count("Documents"));
-        int alerts=expiryAlerts();
-        card((alerts==0?"No upcoming expiry dates found in saved records.":alerts+" expiry / service item(s) need attention. Review the alerts below."));
-        showAlerts();
-        card("OFFLINE MODE • Your records are saved on this phone. Online accounts and cloud sync are not connected in this version.");
-        content.addView(button("＋ Add vehicle",()->{section="Vehicles";render();showForm("Vehicles");}));
-        content.addView(button("＋ Add driver",()->{section="Drivers";render();showForm("Drivers");}));
-        content.addView(button("＋ Record trip",()->{section="Trips";render();showForm("Trips");}));
+        String[][] rows={{"Vehicles Registered", "Vehicles"},{"Drivers Registered","Drivers"},{"Trips Recorded","Trips"},{"Fuel Entries","Fuel"},{"Maintenance Records","Maintenance"},{"Inspections Completed","Inspections"},{"Documents Registered","Documents"}};
+        for(String[] r:rows)addCard(r[0]+": "+count(r[1]));
+        addCard("Upcoming expiry dates\n"+(get("Documents").isEmpty()?"No documents registered yet.":get("Documents")));
+        addCard("Duma Fleet works offline. Your records will sync when you get signal.");
+        action("+ ADD VEHICLE",blue,()->{tab="Vehicles";render();vehicleForm();});
     }
-    private void showAlerts() {
-        String[] keys={"Drivers","Maintenance","Documents"};
-        String[] dateLabels={"Licence expiry (YYYY-MM-DD)","Next service due (YYYY-MM-DD)","Expiry date (YYYY-MM-DD)"};
-        for(int k=0;k<keys.length;k++) {
-            String data=records(keys[k]); if(data.isEmpty()) continue;
-            for(String line:data.split("\\n")) {
-                int at=line.indexOf(dateLabels[k]); if(at<0) continue;
-                int start=at+dateLabels[k].length(); while(start<line.length() && (line.charAt(start)==':'||line.charAt(start)==' ')) start++;
-                if(start+10<=line.length()) {
-                    String date=line.substring(start,start+10);
-                    long days=daysUntil(date);
-                    if(days>=0 && days<=30) card("⚠ "+keys[k]+": "+days+" day(s) until "+date+" • "+line.substring(0,Math.min(48,line.length())));
-                    else if(days<0 && days>-3650) card("OVERDUE • "+keys[k]+": "+date);
-                }
-            }
+    private String moneyTotal(String kind){double n=0;for(String line:get("Money").split("\\n")){if(line.contains("TYPE="+kind)){String v=field(line,"AMOUNT");try{n+=Double.parseDouble(v);}catch(Exception e){}}}return String.format(Locale.US,"%.2f",n);}
+    private String profit(){double earned=Double.parseDouble(moneyTotal("Earned"));double spent=Double.parseDouble(moneyTotal("Diesel"))+Double.parseDouble(moneyTotal("Maintenance"))+Double.parseDouble(moneyTotal("Rescue"));return String.format(Locale.US,"%.2f",earned-spent);}
+    private String field(String line,String key){String token=key+"=";int i=line.lastIndexOf(token);if(i<0)return "";int e=line.indexOf(" • ",i);return line.substring(i+token.length(),e<0?line.length():e).trim();}
+    private void vehicles(){
+        heading("Vehicles");action("+ ADD VEHICLE",blue,this::vehicleForm);
+        String[] records=get("Vehicles").split("\\n");if(get("Vehicles").isEmpty())addCard("No vehicles registered yet.");
+        for(int i=records.length-1;i>=0;i--){String line=records[i];if(line.trim().isEmpty())continue;String plate=field(line,"PLATE");TextView item=label("🚚 "+(plate.isEmpty()?line:plate)+"\n"+field(line,"TYPE")+"  •  "+field(line,"MAKE")+" "+field(line,"MODEL")+"\nStatus: "+(field(line,"STATUS").isEmpty()?"Active":field(line,"STATUS"))+"\nTAP TO OPEN VEHICLE",14,ink);item.setBackgroundColor(Color.WHITE);body.addView(item);item.setOnClickListener(v->{selectedPlate=plate;vehicleDetail();});}
+    }
+    private void vehicleForm(){
+        String[] f={"Photo of vehicle (optional note)","Vehicle type: Bakkie / 4 Ton / 8 Ton / Jumbo / Superlink / Tipper / Trailer / Crane Truck / Refrigerated Truck / Car","Number plate","Make","Model","Year","Owner name","Owner phone","Colour"};
+        form("Add vehicle",f,vals->{save("Vehicles","PLATE="+vals[2]+" • TYPE="+vals[1]+" • MAKE="+vals[3]+" • MODEL="+vals[4]+" • YEAR="+vals[5]+" • OWNER="+vals[6]+" • PHONE="+vals[7]+" • COLOUR="+vals[8]+" • STATUS=Active");});
+    }
+    private void vehicleDetail(){
+        heading(selectedPlate.isEmpty()?"Vehicle details":selectedPlate);
+        for(String x:vehicleTabs)action(x,blue,()->vehicleSub(x));
+        action("REPORT BREAKDOWN",red,this::rescueForm);
+        action("Change vehicle status",muted,()->choose("Vehicle status",new String[]{"Active","Idle","Broken Down","On Trip"},s->save("VehicleStatus",selectedPlate+" • STATUS="+s)));
+    }
+    private void vehicleSub(String x){
+        heading(selectedPlate+" • "+x);
+        switch(x){
+            case "Documents":form("Add vehicle document",new String[]{"Document: Licence Disc / Roadworthy / Insurance","Reference / notes","Expiry date (YYYY-MM-DD)","Photo reference"},v->save("Documents","PLATE="+selectedPlate+" • TYPE="+v[0]+" • EXPIRY="+v[2]+" • "+v[1]));break;
+            case "Maintenance":form("Add service record",new String[]{"Last service date","Next service date","Description","Cost (R)","Garage","Invoice photo reference"},v->save("Maintenance","PLATE="+selectedPlate+" • DATE="+v[0]+" • NEXT="+v[1]+" • "+v[2]+" • AMOUNT="+v[3]+" • GARAGE="+v[4]));break;
+            case "Fuel":form("Add fuel entry",new String[]{"Date","Litres","Cost (R)","Location","Fuel slip photo reference"},v->save("Fuel","PLATE="+selectedPlate+" • DATE="+v[0]+" • LITRES="+v[1]+" • AMOUNT="+v[2]+" • LOCATION="+v[3]));break;
+            case "Inspections":form("Vehicle inspection",new String[]{"Date","Driver","Condition","Notes / defects","Photo reference"},v->save("Inspections","PLATE="+selectedPlate+" • DATE="+v[0]+" • DRIVER="+v[1]+" • CONDITION="+v[2]+" • "+v[3]));break;
+            case "Trips":showRecords("Trips","PLATE="+selectedPlate);break;
+            case "Duma Freight":freightForm();break;
         }
     }
-    private int expiryAlerts() {
-        int total=0; String[] keys={"Drivers","Maintenance","Documents"};
-        String[] labels={"Licence expiry (YYYY-MM-DD)","Next service due (YYYY-MM-DD)","Expiry date (YYYY-MM-DD)"};
-        for(int i=0;i<keys.length;i++) for(String line:records(keys[i]).split("\\n")) {
-            int at=line.indexOf(labels[i]); if(at>=0) { int s=at+labels[i].length(); while(s<line.length()&&(line.charAt(s)==':'||line.charAt(s)==' '))s++; if(s+10<=line.length()&&daysUntil(line.substring(s,s+10))<=30) total++; }
-        }
-        return total;
+    private void drivers(){
+        heading("Drivers");action("+ ADD DRIVER",blue,()->form("Add driver",new String[]{"Photo reference","Full name","ID number","Phone","Driver licence number","Licence code","Licence expiry date"},v->save("Drivers","NAME="+v[1]+" • ID="+v[2]+" • PHONE="+v[3]+" • LICENCE="+v[4]+" • CODE="+v[5]+" • EXPIRY="+v[6]+" • RATING=New")));
+        showRecords("Drivers","");
     }
-    private long daysUntil(String value) {
-        try {
-            SimpleDateFormat f=new SimpleDateFormat("yyyy-MM-dd",Locale.US); f.setLenient(false);
-            Date d=f.parse(value); Calendar a=Calendar.getInstance(); a.set(Calendar.HOUR_OF_DAY,0);a.set(Calendar.MINUTE,0);a.set(Calendar.SECOND,0);a.set(Calendar.MILLISECOND,0);
-            return TimeUnit.MILLISECONDS.toDays(d.getTime()-a.getTimeInMillis());
-        } catch(Exception e) { return Long.MAX_VALUE; }
+    private void trips(){
+        heading("Trips");action("+ START NEW TRIP",blue,()->form("Start trip",new String[]{"Vehicle number plate","Driver name","From location / address","To location / address","Load description","Load weight","Start km reading","Dashboard photo reference","Date and time"},v->save("Trips","STATUS=Active • PLATE="+v[0]+" • DRIVER="+v[1]+" • FROM="+v[2]+" • TO="+v[3]+" • LOAD="+v[4]+" • WEIGHT="+v[5]+" • STARTKM="+v[6]+" • START="+v[8])));
+        showRecords("Trips","");
+        action("END A TRIP",green,()->form("End trip",new String[]{"Trip / vehicle plate","End km reading","Diesel used (litres)","Delivery photo reference","Customer signature reference","Status: Completed / Cancelled"},v->save("TripEnds","PLATE="+v[0]+" • ENDKM="+v[1]+" • DIESEL="+v[2]+" • DELIVERY="+v[3]+" • SIGNATURE="+v[4]+" • STATUS="+v[5])));
     }
-    private void listSection(String key) {
-        heading(key);
-        if(key.equals("Trips")) content.addView(button("Capture current GPS location",this::captureGps));
-        content.addView(button("＋ Add "+singular(key),()->showForm(key)));
-        String data=records(key);
-        if(data.isEmpty()) card("No "+key.toLowerCase(Locale.ROOT)+" recorded yet.");
-        else { String[] lines=data.split("\\n"); for(int i=lines.length-1;i>=0;i--) card(lines[i]); }
+    private void money(){
+        heading("Money");addCard("Freight loads earned: R"+moneyTotal("Freight")+"\nRentals earned: R"+moneyTotal("Rental")+"\nDiesel cost: R"+moneyTotal("Diesel")+"\nMaintenance cost: R"+moneyTotal("Maintenance")+"\nRescue cost: R"+moneyTotal("Rescue")+"\nNet recorded profit: R"+profit());
+        action("+ ADD MONEY RECORD",blue,()->choose("Transaction type",new String[]{"Earned","Freight","Rental","Diesel","Maintenance","Rescue"},type->form("Add money record",new String[]{"Vehicle plate","Amount (R)","Description / reference","Date"},v->save("Money","TYPE="+type+" • PLATE="+v[0]+" • AMOUNT="+v[1]+" • DESCRIPTION="+v[2]+" • DATE="+v[3]))));
+        showRecords("Money","");
+        action("CASH OUT TO BANK - via DUMA PAY",green,()->new AlertDialog.Builder(this).setTitle("DUMA PAY").setMessage("DUMA PAY cash-out integration will be enabled when the approved payment partner connection is configured.").setPositiveButton("OK",null).show());
     }
-    private String singular(String key) {
-        switch(key) {
-            case "Vehicles":return "vehicle"; case "Drivers":return "driver"; case "Trips":return "trip";
-            case "Fuel":return "fuel entry"; case "Maintenance":return "maintenance record";
-            case "Inspections":return "inspection"; default:return "document";
-        }
+    private void freightForm(){
+        heading("Duma Freight • "+selectedPlate);
+        addCard("Publish availability for loads or rental. This saves a local listing draft; customer marketplace publishing needs the Duma Freight service connection.");
+        form("Freight availability",new String[]{"Available for loads: ON / OFF","Available for rental: ON / OFF","Price per trip (R) or customer bidding","Home base","Routes / service areas","Rental price per day (R)","Rental price per week (R)","Rental price per month (R)","With driver / Without driver","Available from date","Available to date"},v->save("FreightListings","PLATE="+selectedPlate+" • LOADS="+v[0]+" • RENTAL="+v[1]+" • TRIPPRICE="+v[2]+" • BASE="+v[3]+" • ROUTES="+v[4]+" • DAY="+v[5]+" • WEEK="+v[6]+" • MONTH="+v[7]+" • DRIVER="+v[8]+" • FROM="+v[9]+" • TO="+v[10]));
+        action("PUBLISH TO DUMA FREIGHT",green,()->new AlertDialog.Builder(this).setTitle("Listing saved").setMessage("Your availability draft is saved on this phone. Live customer publishing requires the Duma Freight backend connection.").setPositiveButton("OK",null).show());
+        showRecords("FreightListings","PLATE="+selectedPlate);
     }
-    private String[] fieldsFor(String key) {
-        switch(key) {
-            case "Vehicles":return new String[]{"Registration number","Make and model","Year","Vehicle type","Odometer (km)","Vehicle notes"};
-            case "Drivers":return new String[]{"Driver full name","Phone number","Licence number","Licence expiry (YYYY-MM-DD)"};
-            case "Trips":return new String[]{"Vehicle registration","Driver name","Start location","Destination","Distance (km)","Trip date (YYYY-MM-DD)"};
-            case "Fuel":return new String[]{"Vehicle registration","Date (YYYY-MM-DD)","Litres","Total cost (R)","Odometer (km)","Fuel station"};
-            case "Maintenance":return new String[]{"Vehicle registration","Service / repair description","Date (YYYY-MM-DD)","Cost (R)","Next service due (YYYY-MM-DD)","Odometer (km)"};
-            case "Inspections":return new String[]{"Vehicle registration","Driver name","Inspection date (YYYY-MM-DD)","Tyres (OK / Issue)","Lights (OK / Issue)","Brakes (OK / Issue)","Body / glass (OK / Issue)","Defects / notes"};
-            default:return new String[]{"Vehicle registration","Document type","Document reference","Issue date (YYYY-MM-DD)","Expiry date (YYYY-MM-DD)","Notes"};
-        }
+    private void rescueForm(){
+        heading("DUMA RESCUE");
+        form("Report breakdown",new String[]{"Vehicle number plate","GPS location or manual address","Problem: Tyre / Battery / Engine / Overheating / Brakes / Fuel / Don't Know","Photo or video reference","Describe the problem"},v->save("Rescue","PLATE="+v[0]+" • LOCATION="+v[1]+" • PROBLEM="+v[2]+" • MEDIA="+v[3]+" • DESCRIPTION="+v[4]+" • STATUS=Reported"));
+        addCard("Mechanic dispatch, live tracking, wallet settlement and the R99 Rescue Plan require the connected Duma Rescue service and payment partner.");
     }
-    private void showForm(String key) {
-        LinearLayout form=new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(8),dp(4),dp(8),dp(4));
-        String[] labels=fieldsFor(key); EditText[] inputs=new EditText[labels.length];
-        for(int i=0;i<labels.length;i++) { inputs[i]=new EditText(this); inputs[i].setSingleLine(true); inputs[i].setHint(labels[i]); form.addView(inputs[i]); }
-        ScrollView wrapper=new ScrollView(this); wrapper.addView(form);
-        new AlertDialog.Builder(this).setTitle("Add "+singular(key)).setView(wrapper).setNegativeButton("Cancel",null)
-            .setPositiveButton("Save",(d,w)->{
-                StringBuilder row=new StringBuilder(); boolean any=false;
-                for(int i=0;i<inputs.length;i++) { String v=inputs[i].getText().toString().trim(); if(!v.isEmpty())any=true; if(i>0)row.append(" • "); row.append(labels[i]).append(": ").append(v); }
-                if(!any) { Toast.makeText(this,"Enter at least one detail",Toast.LENGTH_SHORT).show(); return; }
-                save(key,row.toString());
-            }).show();
+    private interface Saved{void done(String[] v);}
+    private void form(String title,String[] fields,Saved saved){
+        LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(6),dp(4),dp(6),dp(4));EditText[] inputs=new EditText[fields.length];
+        for(int i=0;i<fields.length;i++){inputs[i]=new EditText(this);inputs[i].setHint(fields[i]);inputs[i].setTextSize(14);box.addView(inputs[i]);}
+        ScrollView sc=new ScrollView(this);sc.addView(box);
+        new AlertDialog.Builder(this).setTitle(title).setView(sc).setNegativeButton("Cancel",null).setPositiveButton("Save", (d,w)->{String[] vals=new String[inputs.length];boolean any=false;for(int i=0;i<inputs.length;i++){vals[i]=inputs[i].getText().toString().trim();if(!vals[i].isEmpty())any=true;}if(!any){Toast.makeText(this,"Enter at least one detail",Toast.LENGTH_SHORT).show();return;}saved.done(vals);}).show();
     }
-    private void captureGps() {
-        if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED &&
-           checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},GPS_PERMISSION); return;
-        }
-        try {
-            LocationManager lm=(LocationManager)getSystemService(Context.LOCATION_SERVICE);
-            Location loc=lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            if(loc==null)loc=lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            if(loc==null){Toast.makeText(this,"No recent location. Turn on phone location and try again.",Toast.LENGTH_LONG).show();return;}
-            String v=String.format(Locale.US,"GPS: %.6f, %.6f (accuracy %.0f m)",loc.getLatitude(),loc.getLongitude(),loc.getAccuracy());
-            save("Trips",v);
-        } catch(SecurityException e){Toast.makeText(this,"Location permission is required",Toast.LENGTH_SHORT).show();}
-    }
-    private void reports() {
-        heading("Fleet reports & backups");
-        card("Export saved fleet records as a CSV spreadsheet or a PDF summary. Files are saved to your Downloads folder.");
-        content.addView(button("Export all records as CSV",this::exportCsv));
-        content.addView(button("Export fleet summary as PDF",this::exportPdf));
-        content.addView(button("View storage summary",()->{
-            String s="Vehicles: "+count("Vehicles")+"\nDrivers: "+count("Drivers")+"\nTrips: "+count("Trips")+"\nFuel: "+count("Fuel")+"\nMaintenance: "+count("Maintenance")+"\nInspections: "+count("Inspections")+"\nDocuments: "+count("Documents");
-            new AlertDialog.Builder(this).setTitle("Local records").setMessage(s).setPositiveButton("OK",null).show();
-        }));
-        card("Keep exported files somewhere safe. These exports are not cloud backups.");
-    }
-    private String csvEscape(String s){return "\""+s.replace("\"","\"\"")+"\"";}
-    private void exportCsv() {
-        StringBuilder csv=new StringBuilder("Module,Record\n");
-        for(String key:modules) if(!key.equals("Dashboard")&&!key.equals("Reports"))
-            for(String line:records(key).split("\\n")) if(!line.isEmpty()) csv.append(csvEscape(key)).append(",").append(csvEscape(line)).append("\n");
-        writeDownload("DUMA-Fleet-Records.csv","text/csv",csv.toString());
-    }
-    private void exportPdf() {
-        PdfDocument pdf=new PdfDocument(); Paint p=new Paint(); p.setTextSize(12);
-        int pageNo=1,y=50; PdfDocument.Page page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,pageNo).create()); Canvas c=page.getCanvas();
-        p.setTextSize(20); c.drawText("DUMA FLEET",40,y,p); y+=28; p.setTextSize(10);
-        c.drawText("Smart Fleet Management. Built for Africa. Ready for the World.",40,y,p); y+=25;
-        c.drawText("Generated: "+stamp(),40,y,p); y+=30; p.setTextSize(12);
-        for(String key:modules) if(!key.equals("Dashboard")&&!key.equals("Reports")) {
-            c.drawText(key+" ("+count(key)+")",40,y,p); y+=18;
-            for(String line:records(key).split("\\n")) if(!line.isEmpty()) {
-                String shortLine=line.length()>82?line.substring(0,82)+"...":line;
-                if(y>800){pdf.finishPage(page);pageNo++;page=pdf.startPage(new PdfDocument.PageInfo.Builder(595,842,pageNo).create());c=page.getCanvas();y=50;}
-                c.drawText(shortLine,52,y,p); y+=16;
-            }
-            y+=8;
-        }
-        pdf.finishPage(page);
-        try {
-            ContentValues v=new ContentValues(); v.put(MediaStore.Downloads.DISPLAY_NAME,"DUMA-Fleet-Summary.pdf");v.put(MediaStore.Downloads.MIME_TYPE,"application/pdf");v.put(MediaStore.Downloads.IS_PENDING,1);
-            Uri uri=getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,v);
-            if(uri==null)throw new Exception("Could not create file");
-            OutputStream out=getContentResolver().openOutputStream(uri); pdf.writeTo(out); out.close();v.clear();v.put(MediaStore.Downloads.IS_PENDING,0);getContentResolver().update(uri,v,null,null);
-            Toast.makeText(this,"PDF saved in Downloads",Toast.LENGTH_LONG).show();
-        } catch(Exception e){Toast.makeText(this,"PDF export failed: "+e.getMessage(),Toast.LENGTH_LONG).show();}
-        finally{pdf.close();}
-    }
-    private void writeDownload(String name,String mime,String data) {
-        try {
-            ContentValues v=new ContentValues();v.put(MediaStore.Downloads.DISPLAY_NAME,name);v.put(MediaStore.Downloads.MIME_TYPE,mime);v.put(MediaStore.Downloads.IS_PENDING,1);
-            Uri uri=getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,v);if(uri==null)throw new Exception("Could not create file");
-            OutputStream out=getContentResolver().openOutputStream(uri);out.write(data.getBytes("UTF-8"));out.close();
-            v.clear();v.put(MediaStore.Downloads.IS_PENDING,0);getContentResolver().update(uri,v,null,null);
-            Toast.makeText(this,"CSV saved in Downloads",Toast.LENGTH_LONG).show();
-        } catch(Exception e){Toast.makeText(this,"CSV export failed: "+e.getMessage(),Toast.LENGTH_LONG).show();}
-    }
-    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] results) {
-        super.onRequestPermissionsResult(requestCode,permissions,results);
-        if(requestCode==GPS_PERMISSION&&results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED)captureGps();
+    private interface Chosen{void pick(String s);}
+    private void choose(String title,String[] choices,Chosen chosen){new AlertDialog.Builder(this).setTitle(title).setItems(choices,(d,w)->chosen.pick(choices[w])).show();}
+    private void showRecords(String key,String filter){
+        String data=get(key);if(data.isEmpty()){addCard("No "+key.toLowerCase(Locale.ROOT)+" recorded yet.");return;}String[] lines=data.split("\\n");for(int i=lines.length-1;i>=0;i--)if(lines[i].contains(filter))addCard(lines[i]);
     }
 }
