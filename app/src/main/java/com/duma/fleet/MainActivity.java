@@ -189,7 +189,7 @@ public class MainActivity extends Activity {
         locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
         if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},701);return;}
         try{
-            boolean gpsEnabled=locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);String provider=gpsEnabled?LocationManager.GPS_PROVIDER:LocationManager.NETWORK_PROVIDER;
+            boolean fine=checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED;boolean gpsEnabled=fine&&locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);String provider=gpsEnabled?LocationManager.GPS_PROVIDER:LocationManager.NETWORK_PROVIDER;
             if(!locationManager.isProviderEnabled(provider)){new AlertDialog.Builder(this).setMessage("Turn on Location on your phone, then try again.").setPositiveButton("OK",null).show();return;}
             Toast.makeText(this,"Getting your location...",Toast.LENGTH_SHORT).show();if(gpsListener!=null)locationManager.removeUpdates(gpsListener);
             gpsListener=new LocationListener(){
