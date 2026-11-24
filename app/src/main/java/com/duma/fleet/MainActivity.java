@@ -15,7 +15,7 @@ public class MainActivity extends Activity {
     private SharedPreferences db;
     private LinearLayout body, root;
     private String tab="Dashboard", selectedPlate="";
-    private final String[] nav={"Dashboard","Vehicles","Drivers","Trips","Money"};
+    private final String[] nav={"Dashboard","Vehicles","Drivers","Freight","Money"};
     private final String[] vehicleTabs={"Documents","Maintenance","Fuel","Inspections","Trips","Duma Freight"};
     private int ink=Color.rgb(25,35,48), muted=Color.rgb(95,106,119), blue=Color.rgb(27,73,112);
     private int red=Color.rgb(177,39,39), green=Color.rgb(31,119,75);
@@ -37,8 +37,8 @@ public class MainActivity extends Activity {
         TextView sub=label("by Duma Holdings",12,0xFFE0E7EF);sub.setPadding(0,0,0,dp(2));header.addView(sub);
         TextView tag=label("Smart Fleet Management. Built for Africa. Ready for the World.",10,0xFFCFD8E3);tag.setPadding(0,0,0,0);header.addView(tag);root.addView(header);
         ScrollView sc=new ScrollView(this);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(12),dp(10),dp(12),dp(18));sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout bar=new LinearLayout(this);bar.setBackgroundColor(Color.WHITE);bar.setGravity(Gravity.CENTER);for(String n:nav){TextView t=label(n,11,tab.equals(n)?blue:muted);t.setGravity(Gravity.CENTER);t.setTypeface(null,tab.equals(n)?1:0);bar.addView(t,new LinearLayout.LayoutParams(0,dp(54),1));t.setOnClickListener(v->{tab=n;render();});}root.addView(bar);setContentView(root);
-        switch(tab){case "Dashboard":dashboard();break;case "Vehicles":vehicles();break;case "Drivers":drivers();break;case "Trips":trips();break;case "Money":money();break;}
+        LinearLayout bar=new LinearLayout(this);bar.setBackgroundColor(Color.WHITE);bar.setGravity(Gravity.CENTER);for(String n:nav){boolean freightTab=n.equals("Freight");TextView t=label(freightTab?"🟢 FREIGHT":n,11,freightTab?green:(tab.equals(n)?blue:muted));t.setGravity(Gravity.CENTER);t.setTypeface(null,(freightTab||tab.equals(n))?1:0);if(freightTab)t.setBackgroundColor(0xFFE5F3EA);bar.addView(t,new LinearLayout.LayoutParams(0,dp(54),1));t.setOnClickListener(v->{tab=n;render();});}root.addView(bar);setContentView(root);
+        switch(tab){case "Dashboard":dashboard();break;case "Vehicles":vehicles();break;case "Drivers":drivers();break;case "Freight":freightScreen();break;case "Money":money();break;}
     }
     private void dashboard(){
         heading("Dashboard");
@@ -89,6 +89,18 @@ public class MainActivity extends Activity {
         heading("Trips");action("+ START NEW TRIP",blue,()->form("Start trip",new String[]{"Vehicle number plate","Driver name","From location / address","To location / address","Load description","Load weight","Start km reading","Dashboard photo reference","Date and time"},v->save("Trips","STATUS=Active • PLATE="+v[0]+" • DRIVER="+v[1]+" • FROM="+v[2]+" • TO="+v[3]+" • LOAD="+v[4]+" • WEIGHT="+v[5]+" • STARTKM="+v[6]+" • START="+v[8])));
         showRecords("Trips","");
         action("END A TRIP",green,()->form("End trip",new String[]{"Trip / vehicle plate","End km reading","Diesel used (litres)","Delivery photo reference","Customer signature reference","Status: Completed / Cancelled"},v->save("TripEnds","PLATE="+v[0]+" • ENDKM="+v[1]+" • DIESEL="+v[2]+" • DELIVERY="+v[3]+" • SIGNATURE="+v[4]+" • STATUS="+v[5])));
+    }
+    private void freightScreen(){
+        heading("DUMA FREIGHT");
+        TextView intro=label("FREIGHT IS WHERE YOUR FLEET EARNS. Find loads, post loads and manage your earnings from here.",14,ink);
+        intro.setBackgroundColor(0xFFE5F3EA);body.addView(intro);
+        addCard("MY FREIGHT EARNINGS\\nR"+moneyTotal("Freight"));
+        action("AVAILABLE LOADS",green,()->{heading("Available Loads");showRecords("AvailableLoads","");});
+        action("MY LOADS",blue,()->{heading("My Loads");showRecords("MyLoads","");});
+        action("MY EARNINGS",blue,()->{heading("My Freight Earnings");addCard("Recorded freight earnings: R"+moneyTotal("Freight"));showRecords("Money","TYPE=Freight");});
+        action("+ POST A LOAD",green,()->form("Post a load",new String[]{"Pickup location","Delivery location","Load description / goods","Weight (tons)","Truck type needed","Price offered (R)","Pickup date","Contact name and phone"},v->save("AvailableLoads","FROM="+v[0]+" • TO="+v[1]+" • LOAD="+v[2]+" • WEIGHT="+v[3]+" • TRUCK="+v[4]+" • PRICE="+v[5]+" • DATE="+v[6]+" • CONTACT="+v[7]+" • STATUS=Available")));
+        action("FIND A TRUCK",green,()->form("Find a truck",new String[]{"Pickup location","Delivery location","Truck type","Load description","Weight (tons)","Required date","Your name and phone"},v->save("FindTruckRequests","FROM="+v[0]+" • TO="+v[1]+" • TRUCK="+v[2]+" • LOAD="+v[3]+" • WEIGHT="+v[4]+" • DATE="+v[5]+" • CONTACT="+v[6]+" • STATUS=Requested")));
+        addCard("Marketplace note: entries are saved on this phone for now. Publishing loads to other users, live matching, chat, booking and payment settlement require the connected DUMA Freight backend.");
     }
     private void money(){
         heading("Money");addCard("Freight loads earned: R"+moneyTotal("Freight")+"\nRentals earned: R"+moneyTotal("Rental")+"\nDiesel cost: R"+moneyTotal("Diesel")+"\nMaintenance cost: R"+moneyTotal("Maintenance")+"\nRescue cost: R"+moneyTotal("Rescue")+"\nNet recorded profit: R"+profit());
