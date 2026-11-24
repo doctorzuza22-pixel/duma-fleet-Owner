@@ -1,6 +1,12 @@
 package com.duma.fleet;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.os.Looper;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -14,6 +20,8 @@ public class MainActivity extends Activity {
     private SharedPreferences db;
     private LinearLayout body, root;
     private String tab="Dashboard", page="Dashboard", selectedPlate="";
+    private LocationManager locationManager;
+    private LocationListener gpsListener;
     private final String[] nav={"Dashboard","Vehicles","Drivers","Freight","Money"};
     private final String[] vehicleTabs={"Documents","Maintenance","Fuel","Inspections","Trips","Duma Freight"};
     private final int ink=Color.rgb(25,35,48), muted=Color.rgb(95,106,119), blue=Color.rgb(27,73,112);
@@ -118,8 +126,11 @@ public class MainActivity extends Activity {
         action("DRIVERS & VERIFICATION",blue,()->openPage("Drivers"));
         action("DUMA RESCUE",red,()->openPage("Duma Rescue"));
         action("MONEY & PROFIT",blue,()->openPage("Money"));
+        action("CAPTURE CURRENT GPS LOCATION",blue,this::captureGpsLocation);
+        String gps=get("LastGPS");
+        addCard(gps.isEmpty()?"GPS: No location captured yet.":"LAST GPS SNAPSHOT\\n"+gps);
         action("REFRESH SNAPSHOT",green,this::render);
-        addCard("IMPORTANT: Current app data is stored locally on this phone. Live truck positions, cross-company updates, automatic fraud detection, dispatch alerts and shared admin review require a secure cloud backend and approved service integrations.");
+        addCard("IMPORTANT: GPS capture records a one-time location on this phone. It does not continuously track a truck or share its position with dispatch. Live tracking and shared dispatch require a secure cloud backend, driver consent and approved service integrations.");
     }
 
     private String moneyTotal(String kind){double n=0;for(String line:get("Money").split("\\n"))if(line.contains("TYPE="+kind)){try{n+=Double.parseDouble(field(line,"AMOUNT"));}catch(Exception ignored){}}return String.format(Locale.US,"%.2f",n);}
@@ -174,7 +185,24 @@ public class MainActivity extends Activity {
     }
     private void trips(){backToDashboard();heading("Trips");action("+ START NEW TRIP",blue,()->form("Start trip",new String[]{"Vehicle number plate","Driver name","From location","To location","Load description","Load weight","Start km reading","Dashboard photo reference","Date and time"},v->save("Trips","STATUS=Active • PLATE="+v[0]+" • DRIVER="+v[1]+" • FROM="+v[2]+" • TO="+v[3]+" • LOAD="+v[4]+" • WEIGHT="+v[5]+" • STARTKM="+v[6]+" • START="+v[8])));showRecords("Trips","");action("END A TRIP",green,()->form("End trip",new String[]{"Trip / vehicle plate","End km reading","Diesel used (litres)","Delivery photo reference","Customer signature reference","Status"},v->save("TripEnds","PLATE="+v[0]+" • ENDKM="+v[1]+" • DIESEL="+v[2]+" • DELIVERY="+v[3]+" • SIGNATURE="+v[4]+" • STATUS="+v[5])));}
 
-    private void rescueScreen(){backToDashboard();heading("DUMA RESCUE");TextView emergency=label("I AM BROKEN DOWN",17,Color.WHITE);emergency.setTypeface(null,1);emergency.setBackgroundColor(red);body.addView(emergency);action("REQUEST HELP",red,this::rescueForm);heading("My rescue requests");showRecords("Rescue","");}
+    private void captureGpsLocation(){
+        locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
+        if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},701);return;}
+        try{
+            boolean gpsEnabled=locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);String provider=gpsEnabled?LocationManager.GPS_PROVIDER:LocationManager.NETWORK_PROVIDER;
+            if(!locationManager.isProviderEnabled(provider)){new AlertDialog.Builder(this).setMessage("Turn on Location on your phone, then try again.").setPositiveButton("OK",null).show();return;}
+            Toast.makeText(this,"Getting your location...",Toast.LENGTH_SHORT).show();if(gpsListener!=null)locationManager.removeUpdates(gpsListener);
+            gpsListener=new LocationListener(){
+                @Override public void onLocationChanged(Location location){if(gpsListener!=null){locationManager.removeUpdates(gpsListener);gpsListener=null;}String value=String.format(Locale.US,"Latitude %.6f, Longitude %.6f • Accuracy %.0f m • %s",location.getLatitude(),location.getLongitude(),location.getAccuracy(),stamp());db.edit().putString("LastGPS",value).apply();Toast.makeText(MainActivity.this,"GPS location captured on this device",Toast.LENGTH_LONG).show();render();}
+                @Override public void onProviderEnabled(String provider){}
+                @Override public void onProviderDisabled(String provider){}
+                @Override public void onStatusChanged(String provider,int status,android.os.Bundle extras){}
+            };locationManager.requestLocationUpdates(provider,0L,0f,gpsListener,Looper.getMainLooper());
+        }catch(SecurityException e){Toast.makeText(this,"Location permission is required.",Toast.LENGTH_LONG).show();}catch(Exception e){new AlertDialog.Builder(this).setMessage("Could not get a GPS fix. Check signal and try again.").setPositiveButton("OK",null).show();}
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults){super.onRequestPermissionsResult(requestCode,permissions,grantResults);if(requestCode==701){boolean granted=false;for(int result:grantResults)if(result==PackageManager.PERMISSION_GRANTED)granted=true;if(granted)captureGpsLocation();else Toast.makeText(this,"Location permission was not granted.",Toast.LENGTH_LONG).show();}}
+    private void rescueScreen(){backToDashboard();heading("DUMA RESCUE");TextView emergency=label("I AM BROKEN DOWN",17,Color.WHITE);emergency.setTypeface(null,1);emergency.setBackgroundColor(red);body.addView(emergency);action("CAPTURE MY GPS LOCATION",blue,this::captureGpsLocation);String gps=get("LastGPS");if(!gps.isEmpty())addCard("LAST CAPTURED LOCATION\\n"+gps);action("REQUEST HELP",red,this::rescueForm);heading("My rescue requests");showRecords("Rescue","");}
     private void rescueForm(){form("DUMA RESCUE - Request help",new String[]{"Vehicle number plate","GPS location or manual address","Problem: Tyre / Battery / Engine / Overheating / Brakes / Fuel","Photo or video reference","Describe the problem"},v->save("Rescue","PLATE="+v[0]+" • LOCATION="+v[1]+" • PROBLEM="+v[2]+" • MEDIA="+v[3]+" • DESCRIPTION="+v[4]+" • STATUS=Reported"));}
     private void freightForm(){heading("Duma Freight • "+selectedPlate);form("Freight availability",new String[]{"Available for loads: ON / OFF","Available for rental: ON / OFF","Price per trip (R)","Home base","Routes / service areas","Rental price per day (R)","Rental price per week (R)","Rental price per month (R)","With driver / Without driver","Available from date","Available to date"},v->save("FreightListings","PLATE="+selectedPlate+" • LOADS="+v[0]+" • RENTAL="+v[1]+" • TRIPPRICE="+v[2]+" • BASE="+v[3]+" • ROUTES="+v[4]+" • DAY="+v[5]+" • WEEK="+v[6]+" • MONTH="+v[7]+" • DRIVER="+v[8]+" • FROM="+v[9]+" • TO="+v[10]));}
 
