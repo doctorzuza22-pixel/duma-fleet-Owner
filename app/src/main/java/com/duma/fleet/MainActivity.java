@@ -54,6 +54,7 @@ public class MainActivity extends Activity {
             case "Money":money();break;
             case "Freight":freightScreen();break;
             case "Fleet Overview":fleetOverview();break;
+            case "Control Tower":controlTower();break;
             case "Duma Rescue":rescueScreen();break;
             case "Vehicles":vehicles();break;
             case "Drivers":drivers();break;
@@ -81,6 +82,7 @@ public class MainActivity extends Activity {
 
     private void fleetOverview(){
         backToDashboard();heading("FLEET OVERVIEW");
+        action("DUMA CONTROL TOWER",green,()->openPage("Control Tower"));
         addCard("Vehicles: "+count("Vehicles")+"\nDrivers: "+count("Drivers")+"\nTrips: "+count("Trips")+"\nFuel: "+count("Fuel")+"\nMaintenance: "+count("Maintenance")+"\nInspections: "+count("Inspections")+"\nDocuments: "+count("Documents"));
         action("VEHICLES",blue,()->openPage("Vehicles"));
         action("DRIVERS",blue,()->openPage("Drivers"));
@@ -89,6 +91,35 @@ public class MainActivity extends Activity {
         action("MAINTENANCE",blue,()->openPage("Maintenance"));
         action("INSPECTIONS",blue,()->openPage("Inspections"));
         action("DOCUMENTS & EXPIRY DATES",blue,()->openPage("Documents & Expiry Dates"));
+    }
+
+    private int countContaining(String key,String needle){
+        int total=0;
+        for(String line:get(key).split("\\n"))if(!line.trim().isEmpty()&&line.contains(needle))total++;
+        return total;
+    }
+
+    private void controlTower(){
+        backToDashboard();
+        heading("DUMA CONTROL TOWER");
+        addCard("OPERATIONS SNAPSHOT • "+stamp()+"\nThis is a snapshot of records saved on this device. It is not live GPS or a shared cloud dashboard.");
+        addCard("FLEET AT A GLANCE\nVehicles: "+count("Vehicles")+"\nRegistered drivers: "+count("Drivers")+"\nTrips recorded: "+count("Trips")+"\nActive trips: "+countContaining("Trips","STATUS=Active"));
+        addCard("DUMA FREIGHT\nLoads posted: "+count("AvailableLoads")+"\nTruck requests: "+count("FindTruckRequests")+"\nTruck availability listings: "+count("FreightListings")+"\nFreight earnings: R"+moneyTotal("Freight"));
+        addCard("RESCUE & SAFETY\nRescue requests: "+count("Rescue")+"\nDriver reports awaiting review: "+countContaining("DriverReports","STATUS=Submitted for review")+"\nDrivers pending verification: "+countContaining("Drivers","VERIFICATION=PENDING"));
+        heading("PRIORITY ATTENTION");
+        int pending=countContaining("Drivers","VERIFICATION=PENDING");
+        int reports=countContaining("DriverReports","STATUS=Submitted for review");
+        int rescue=countContaining("Rescue","STATUS=Reported");
+        if(pending+reports+rescue==0)addCard("No locally recorded pending verification, driver reports or new rescue requests.");
+        else addCard("Pending driver checks: "+pending+"\nDriver reports to review: "+reports+"\nNew rescue requests: "+rescue+"\nReview these items before assigning work.");
+        heading("OPERATIONS SHORTCUTS");
+        action("ACTIVE TRIPS",blue,()->openPage("Trips"));
+        action("AVAILABLE LOADS",green,()->openPage("Available Loads"));
+        action("DRIVERS & VERIFICATION",blue,()->openPage("Drivers"));
+        action("DUMA RESCUE",red,()->openPage("Duma Rescue"));
+        action("MONEY & PROFIT",blue,()->openPage("Money"));
+        action("REFRESH SNAPSHOT",green,this::render);
+        addCard("IMPORTANT: Current app data is stored locally on this phone. Live truck positions, cross-company updates, automatic fraud detection, dispatch alerts and shared admin review require a secure cloud backend and approved service integrations.");
     }
 
     private String moneyTotal(String kind){double n=0;for(String line:get("Money").split("\\n"))if(line.contains("TYPE="+kind)){try{n+=Double.parseDouble(field(line,"AMOUNT"));}catch(Exception ignored){}}return String.format(Locale.US,"%.2f",n);}
